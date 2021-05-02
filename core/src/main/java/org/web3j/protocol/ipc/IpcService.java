@@ -1,3 +1,15 @@
+/*
+ * Copyright 2019 Web3 Labs Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 package org.web3j.protocol.ipc;
 
 import java.io.ByteArrayInputStream;
@@ -9,32 +21,17 @@ import org.slf4j.LoggerFactory;
 
 import org.web3j.protocol.Service;
 
-/**
- * Ipc service implementation.
- */
+/** Ipc service implementation. */
 public class IpcService extends Service {
 
     private static final Logger log = LoggerFactory.getLogger(IpcService.class);
 
-    private final IOFacade ioFacade;
-
-    @Deprecated
-    public IpcService(IOFacade ioFacade, boolean includeRawResponses) {
-        super(includeRawResponses);
-        this.ioFacade = ioFacade;
-    }
-
-    @Deprecated
-    public IpcService(IOFacade ioFacade) {
-        this(ioFacade, false);
-    }
-
     public IpcService(boolean includeRawResponses) {
-        this(null, includeRawResponses);
+        super(includeRawResponses);
     }
 
     public IpcService() {
-        this(null, false);
+        this(false);
     }
 
     protected IOFacade getIO() {
@@ -43,15 +40,13 @@ public class IpcService extends Service {
 
     @Override
     protected InputStream performIO(String payload) throws IOException {
-        IOFacade io = getIoFacade();
+        IOFacade io = getIO();
         io.write(payload);
         log.debug(">> " + payload);
 
         String result = io.read();
         log.debug("<< " + result);
-        if (io != ioFacade) {
-            io.close();
-        }
+        io.close();
 
         // It's not ideal converting back into an inputStream, but we want
         // to be consistent with the HTTPService API.
@@ -59,22 +54,6 @@ public class IpcService extends Service {
         return new ByteArrayInputStream(result.getBytes("UTF-8"));
     }
 
-    private IOFacade getIoFacade() {
-        IOFacade io;
-        if (ioFacade != null) {
-            io = ioFacade;
-        } else {
-            io = getIO();
-        }
-        return io;
-    }
-
     @Override
-    public void close() throws IOException {
-        IOFacade io = getIoFacade();
-
-        if (io != null) {
-            io.close();
-        }
-    }
+    public void close() throws IOException {}
 }

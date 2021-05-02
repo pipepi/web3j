@@ -1,7 +1,20 @@
+/*
+ * Copyright 2019 Web3 Labs Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 package org.web3j.protocol.websocket;
 
 import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 
 import org.java_websocket.handshake.ServerHandshake;
 import org.slf4j.Logger;
@@ -15,42 +28,49 @@ public class WebSocketClient extends org.java_websocket.client.WebSocketClient {
 
     private static final Logger log = LoggerFactory.getLogger(WebSocketClient.class);
 
-    private WebSocketListener listener;
+    private Optional<WebSocketListener> listenerOpt = Optional.empty();
 
     public WebSocketClient(URI serverUri) {
         super(serverUri);
     }
 
-    public WebSocketClient(URI serverUri, Map<String,String> httpHeaders) {
+    public WebSocketClient(URI serverUri, Map<String, String> httpHeaders) {
         super(serverUri, httpHeaders);
     }
 
     @Override
     public void onOpen(ServerHandshake serverHandshake) {
-        log.info("Opened WebSocket connection to {}", uri);
+        log.debug("Opened WebSocket connection to {}", uri);
     }
 
     @Override
     public void onMessage(String s) {
-        try {
-            log.debug("Received message {} from server {}", s, uri);
-            listener.onMessage(s);
-        } catch (Exception e) {
-            log.error("Failed to process message '{}' from server {}", s, uri);
-        }
+        log.debug("Received message {} from server {}", s, uri);
+        listenerOpt.ifPresent(
+                listener -> {
+                    try {
+                        listener.onMessage(s);
+                    } catch (Exception e) {
+                        log.error("Failed to process message '{}' from server {}", s, uri, e);
+                    }
+                });
     }
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        log.info("Closed WebSocket connection to {}, because of reason: '{}'."
-                + "Conection closed remotely: {}", uri, reason, remote);
-        listener.onClose();
+        log.debug(
+                "Closed WebSocket connection to {}, because of reason: '{}'."
+                        + "Connection closed remotely: {}",
+                uri,
+                reason,
+                remote);
+        listenerOpt.ifPresent(WebSocketListener::onClose);
     }
 
     @Override
     public void onError(Exception e) {
-        log.error(String.format("WebSocket connection to {} failed with error", uri), e);
-        listener.onError(e);
+        log.error("WebSocket connection to {} failed with error", uri, e);
+        listenerOpt.ifPresent(listener -> listener.onError(e));
     }
 
     /**
@@ -59,6 +79,6 @@ public class WebSocketClient extends org.java_websocket.client.WebSocketClient {
      * @param listener WebSocket listener
      */
     public void setListener(WebSocketListener listener) {
-        this.listener = listener;
+        this.listenerOpt = Optional.ofNullable(listener);
     }
 }

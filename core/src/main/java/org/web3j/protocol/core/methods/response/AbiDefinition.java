@@ -1,48 +1,82 @@
+/*
+ * Copyright 2019 Web3 Labs Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 package org.web3j.protocol.core.methods.response;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-/**
- * AbiDefinition wrapper.
- */
+/** AbiDefinition wrapper. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AbiDefinition {
     private boolean constant;
-    private List<NamedType> inputs;
+    private List<NamedType> inputs = new ArrayList<>();
     private String name;
-    private List<NamedType> outputs;
+    private List<NamedType> outputs = new ArrayList<>();
     private String type;
     private boolean payable;
 
     /**
      * The stateMutability function modifier.
+     *
      * <p>this does not factor into the <code>#hashCode()</code> or <code>#equals()</code> logic
      * since multiple functions with the same signature that only differ in mutability are not
-     * allowed in Solidity.</p>
-     * <p>
-     *     Valid values are:
-     *     <ul>
-     *         <li>pure</li>
-     *         <li>view</li>
-     *         <li>nonpayable</li>
-     *         <li>payable</li>
-     *     </ul>
-     * </p>
+     * allowed in Solidity.
+     *
+     * <p>Valid values are:
+     *
+     * <ul>
+     *   <li>pure
+     *   <li>view
+     *   <li>nonpayable
+     *   <li>payable
+     * </ul>
      */
     private String stateMutability;
-    
-    public AbiDefinition() {
+
+    public AbiDefinition() {}
+
+    public AbiDefinition(AbiDefinition from) {
+        this(
+                from.constant,
+                clone(from.inputs),
+                from.name,
+                clone(from.outputs),
+                from.type,
+                from.payable,
+                from.stateMutability);
     }
 
-    public AbiDefinition(boolean constant, List<NamedType> inputs, String name,
-                         List<NamedType> outputs, String type, boolean payable) {
+    public AbiDefinition(
+            boolean constant,
+            List<NamedType> inputs,
+            String name,
+            List<NamedType> outputs,
+            String type,
+            boolean payable) {
         this(constant, inputs, name, outputs, type, payable, null);
     }
 
-    public AbiDefinition(boolean constant, List<NamedType> inputs, String name,
-            List<NamedType> outputs, String type, boolean payable,
+    public AbiDefinition(
+            boolean constant,
+            List<NamedType> inputs,
+            String name,
+            List<NamedType> outputs,
+            String type,
+            boolean payable,
             String stateMutability) {
         this.constant = constant;
         this.inputs = inputs;
@@ -52,7 +86,6 @@ public class AbiDefinition {
         this.payable = payable;
         this.stateMutability = stateMutability;
     }
-
 
     public boolean isConstant() {
         return constant;
@@ -132,15 +165,16 @@ public class AbiDefinition {
             return false;
         }
         if (getInputs() != null
-                ? !getInputs().equals(that.getInputs()) : that.getInputs() != null) {
+                ? !getInputs().equals(that.getInputs())
+                : that.getInputs() != null) {
             return false;
         }
-        if (getName() != null
-                ? !getName().equals(that.getName()) : that.getName() != null) {
+        if (getName() != null ? !getName().equals(that.getName()) : that.getName() != null) {
             return false;
         }
         if (getOutputs() != null
-                ? !getOutputs().equals(that.getOutputs()) : that.getOutputs() != null) {
+                ? !getOutputs().equals(that.getOutputs())
+                : that.getOutputs() != null) {
             return false;
         }
         if (getStateMutability() != null
@@ -148,8 +182,7 @@ public class AbiDefinition {
                 : that.getStateMutability() != null) {
             return false;
         }
-        return getType() != null
-                ? getType().equals(that.getType()) : that.getType() == null;
+        return getType() != null ? getType().equals(that.getType()) : that.getType() == null;
     }
 
     @Override
@@ -165,21 +198,38 @@ public class AbiDefinition {
     }
 
     public static class NamedType {
+        private static String DEFAULT_INTERNAL_TYPE = "";
+
         private String name;
         private String type;
+        private List<NamedType> components = new ArrayList<>();
+        private String internalType = DEFAULT_INTERNAL_TYPE;
         private boolean indexed;
 
-        public NamedType() {
+        public NamedType() {}
+
+        public NamedType(NamedType from) {
+            this(from.name, from.type, from.indexed);
         }
 
         public NamedType(String name, String type) {
-            this.name = name;
-            this.type = type;
+            this(name, type, false);
         }
 
         public NamedType(String name, String type, boolean indexed) {
+            this(name, type, Collections.emptyList(), DEFAULT_INTERNAL_TYPE, indexed);
+        }
+
+        public NamedType(
+                String name,
+                String type,
+                List<NamedType> components,
+                String internalType,
+                boolean indexed) {
             this.name = name;
             this.type = type;
+            this.components = components;
+            this.internalType = internalType;
             this.indexed = indexed;
         }
 
@@ -199,12 +249,55 @@ public class AbiDefinition {
             this.type = type;
         }
 
+        public String getInternalType() {
+            return internalType;
+        }
+
+        public void setInternalType(final String internalType) {
+            this.internalType = internalType;
+        }
+
         public boolean isIndexed() {
             return indexed;
         }
 
         public void setIndexed(boolean indexed) {
             this.indexed = indexed;
+        }
+
+        public List<NamedType> getComponents() {
+            return components;
+        }
+
+        public void setComponents(final List<NamedType> components) {
+            this.components = components;
+        }
+
+        public int structIdentifier() {
+            return ((internalType == null ? type : internalType.isEmpty() ? type : internalType)
+                            + components.stream()
+                                    .map(namedType -> String.valueOf(namedType.structIdentifier()))
+                                    .collect(Collectors.joining()))
+                    .hashCode();
+        }
+
+        public int nestedness() {
+            if (getComponents().size() == 0) {
+                return 0;
+            }
+            return 1 + getComponents().stream().mapToInt(NamedType::nestedness).max().getAsInt();
+        }
+
+        public boolean isDynamic() {
+            if (getType().equals("string")
+                    || getType().equals("bytes")
+                    || getType().contains("[]")) {
+                return true;
+            }
+            if (components.stream().anyMatch(NamedType::isDynamic)) {
+                return true;
+            }
+            return false;
         }
 
         @Override
@@ -223,11 +316,26 @@ public class AbiDefinition {
             }
 
             if (getName() != null
-                    ? !getName().equals(namedType.getName()) : namedType.getName() != null) {
+                    ? !getName().equals(namedType.getName())
+                    : namedType.getName() != null) {
                 return false;
             }
+
+            if (getComponents() != null
+                    ? !getComponents().equals(namedType.getComponents())
+                    : namedType.getComponents() != null) {
+                return false;
+            }
+
+            if (getInternalType() != null
+                    ? !getInternalType().equals(namedType.getInternalType())
+                    : namedType.getInternalType() != null) {
+                return false;
+            }
+
             return getType() != null
-                    ? getType().equals(namedType.getType()) : namedType.getType() == null;
+                    ? getType().equals(namedType.getType())
+                    : namedType.getType() == null;
         }
 
         @Override
@@ -235,7 +343,13 @@ public class AbiDefinition {
             int result = getName() != null ? getName().hashCode() : 0;
             result = 31 * result + (getType() != null ? getType().hashCode() : 0);
             result = 31 * result + (isIndexed() ? 1 : 0);
+            result = 31 * result + (getComponents() != null ? getComponents().hashCode() : 0);
+            result = 31 * result + (getInternalType() != null ? getInternalType().hashCode() : 0);
             return result;
         }
+    }
+
+    private static List<NamedType> clone(final List<NamedType> from) {
+        return from.stream().map(NamedType::new).collect(Collectors.toList());
     }
 }

@@ -1,53 +1,58 @@
+/*
+ * Copyright 2019 Web3 Labs Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 package org.web3j.rlp;
 
 import java.util.ArrayList;
 
 /**
- * <p>Recursive Length Prefix (RLP) decoder.</p>
- * <p>For the specification, refer to p16 of the <a href="http://gavwood.com/paper.pdf">
- * yellow paper</a> and <a href="https://github.com/ethereum/wiki/wiki/RLP">here</a>.</p>
+ * Recursive Length Prefix (RLP) decoder.
+ *
+ * <p>For the specification, refer to p16 of the <a href="http://gavwood.com/paper.pdf">yellow
+ * paper</a> and <a href="https://github.com/ethereum/wiki/wiki/RLP">here</a>.
  */
 public class RlpDecoder {
 
     /**
-     * [0x80]
-     * If a string is 0-55 bytes long, the RLP encoding consists of a single
-     * byte with value 0x80 plus the length of the string followed by the
-     * string. The range of the first byte is thus [0x80, 0xb7].
+     * [0x80] If a string is 0-55 bytes long, the RLP encoding consists of a single byte with value
+     * 0x80 plus the length of the string followed by the string. The range of the first byte is
+     * thus [0x80, 0xb7].
      */
     public static int OFFSET_SHORT_STRING = 0x80;
 
     /**
-     * [0xb7]
-     * If a string is more than 55 bytes long, the RLP encoding consists of a
-     * single byte with value 0xb7 plus the length of the length of the string
-     * in binary form, followed by the length of the string, followed by the
-     * string. For example, a length-1024 string would be encoded as
-     * \xb9\x04\x00 followed by the string. The range of the first byte is thus
-     * [0xb8, 0xbf].
+     * [0xb7] If a string is more than 55 bytes long, the RLP encoding consists of a single byte
+     * with value 0xb7 plus the length of the length of the string in binary form, followed by the
+     * length of the string, followed by the string. For example, a length-1024 string would be
+     * encoded as \xb9\x04\x00 followed by the string. The range of the first byte is thus [0xb8,
+     * 0xbf].
      */
     public static int OFFSET_LONG_STRING = 0xb7;
 
     /**
-     * [0xc0]
-     * If the total payload of a list (i.e. the combined length of all its
-     * items) is 0-55 bytes long, the RLP encoding consists of a single byte
-     * with value 0xc0 plus the length of the list followed by the concatenation
-     * of the RLP encodings of the items. The range of the first byte is thus
-     * [0xc0, 0xf7].
+     * [0xc0] If the total payload of a list (i.e. the combined length of all its items) is 0-55
+     * bytes long, the RLP encoding consists of a single byte with value 0xc0 plus the length of the
+     * list followed by the concatenation of the RLP encodings of the items. The range of the first
+     * byte is thus [0xc0, 0xf7].
      */
     public static int OFFSET_SHORT_LIST = 0xc0;
 
     /**
-     * [0xf7]
-     * If the total payload of a list is more than 55 bytes long, the RLP
-     * encoding consists of a single byte with value 0xf7 plus the length of the
-     * length of the list in binary form, followed by the length of the list,
-     * followed by the concatenation of the RLP encodings of the items. The
-     * range of the first byte is thus [0xf8, 0xff].
+     * [0xf7] If the total payload of a list is more than 55 bytes long, the RLP encoding consists
+     * of a single byte with value 0xf7 plus the length of the length of the list in binary form,
+     * followed by the length of the list, followed by the concatenation of the RLP encodings of the
+     * items. The range of the first byte is thus [0xf8, 0xff].
      */
     public static int OFFSET_LONG_LIST = 0xf7;
-
 
     /**
      * Parse wire byte[] message into RLP elements.
@@ -66,6 +71,11 @@ public class RlpDecoder {
         try {
             if (data == null || data.length == 0) {
                 return;
+            }
+
+            // endPos is derived from input data during recursion, so we must validate it
+            if (endPos < 0 || endPos > data.length) {
+                throw new RuntimeException("RLP invalid parameters while decoding");
             }
 
             while (startPos < endPos) {
@@ -97,6 +107,11 @@ public class RlpDecoder {
 
                     byte strLen = (byte) (prefix - OFFSET_SHORT_STRING);
 
+                    // Input validation
+                    if (strLen > endPos - (startPos + 1)) {
+                        throw new RuntimeException("RLP length mismatch");
+                    }
+
                     byte[] rlpData = new byte[strLen];
                     System.arraycopy(data, startPos + 1, rlpData, 0, strLen);
 
@@ -113,6 +128,11 @@ public class RlpDecoder {
 
                     byte lenOfStrLen = (byte) (prefix - OFFSET_LONG_STRING);
                     int strLen = calcLength(lenOfStrLen, data, startPos);
+
+                    // Input validation
+                    if (strLen > endPos - (startPos + lenOfStrLen + 1)) {
+                        throw new RuntimeException("RLP length mismatch");
+                    }
 
                     // now we can parse an item for data[1]..data[length]
                     byte[] rlpData = new byte[strLen];
@@ -149,13 +169,15 @@ public class RlpDecoder {
                     int listLen = calcLength(lenOfListLen, data, startPos);
 
                     RlpList newLevelList = new RlpList(new ArrayList<>());
-                    traverse(data, startPos + lenOfListLen + 1,
-                            startPos + lenOfListLen + listLen + 1, newLevelList);
+                    traverse(
+                            data,
+                            startPos + lenOfListLen + 1,
+                            startPos + lenOfListLen + listLen + 1,
+                            newLevelList);
                     rlpList.getValues().add(newLevelList);
 
                     startPos += lenOfListLen + listLen + 1;
                 }
-
             }
         } catch (Exception e) {
             throw new RuntimeException("RLP wrong encoding", e);
@@ -164,12 +186,14 @@ public class RlpDecoder {
 
     private static int calcLength(int lengthOfLength, byte[] data, int pos) {
         byte pow = (byte) (lengthOfLength - 1);
-        int length = 0;
+        long length = 0;
         for (int i = 1; i <= lengthOfLength; ++i) {
-            length += (data[pos + i] & 0xff) << (8 * pow);
+            length += ((long) (data[pos + i] & 0xff)) << (8 * pow);
             pow--;
         }
-        return length;
+        if (length < 0 || length > Integer.MAX_VALUE) {
+            throw new RuntimeException("RLP too many bytes to decode");
+        }
+        return (int) length;
     }
-
 }
